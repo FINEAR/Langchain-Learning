@@ -3,6 +3,7 @@ import re
 from typing import Annotated, Optional
 from typing_extensions import TypedDict
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -13,12 +14,8 @@ from openai import OpenAI
 from langsmith.wrappers import wrap_openai
 from langsmith import traceable
 load_dotenv()
-langsmith_tracing = os.getenv("LANGSMITH_TRACING")
-langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
-os.environ["LANGSMITH_TRACING"] = langsmith_tracing
-os.environ["LANGSMITH_API_KEY"] = langsmith_api_key
 openai_client = wrap_openai(OpenAI())
-@traceable
+
 class State(TypedDict):#创建一个stategraph
     # 会话消息，使用add_messages添加
     messages: Annotated[list, add_messages]
@@ -68,9 +65,10 @@ def guess(state: State) -> State:
 def parse_digit(text: str) -> Optional[int]:
     # 找到文本中0-9的第一个数字
     m = re.search(r"[0-9]", text)
-    return int(m.group()) 
+    return int(m.group()) if m else None
 
 # 评估节点：解析模型输出并给出反馈或结束
+@traceable
 def evaluate(state: State) -> State:
     # messages的最后一条
     last = state["messages"][-1]
@@ -116,7 +114,7 @@ graph = graph_builder.compile(checkpointer=memory)
 # 用langgraph生成markdown流程图
 def export_mermaid_md(output_path: str = "graph.md") -> None:
     mermaid = graph.get_graph().draw_mermaid()
-    os.Path("graph.md").write_text(f"[mermaid\n{mermaid}\n](http://_vscodecontentref_/1)\n", encoding="utf-8")
+    Path("graph.md").write_text(f"[mermaid\n{mermaid}\n](http://_vscodecontentref_/1)\n", encoding="utf-8")
 
  
 
@@ -126,10 +124,12 @@ def main():
     config = {"configurable": {"thread_id": thread_id}}
     export_mermaid_md()
     for event in graph.stream({"messages": []}, config, stream_mode="values"):
-        msg = event["messages"][-1]
-        content = getattr(msg, "content", None)
-        if content:
-            print(content)
+        messages = event.get("messages", [])
+        if messages:
+            msg = messages[-1]
+            content = getattr(msg, "content", None)
+            if content:
+                print(content)
 
 if __name__ == "__main__":
     main()

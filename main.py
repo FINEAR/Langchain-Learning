@@ -1,6 +1,5 @@
 import random
-import re
-from typing import Annotated, Optional
+from typing import Annotated
 from typing_extensions import TypedDict
 import os
 from pathlib import Path
@@ -61,19 +60,27 @@ def guess(state: State) -> State:
     # add_messages
     return {"messages": [resp]}
 
+<<<<<<< HEAD
 # 解析文本中的数字，返回类型为int型
 def parse_digit(text: str) -> Optional[int]:
     # 找到文本中0-9的第一个数字
     m = re.search(r"[0-9]", text)
     return int(m.group()) if m else None
 
+=======
+>>>>>>> 473f9c5c1fccb579976262657affe2d984f60977
 # 评估节点：解析模型输出并给出反馈或结束
 @traceable
 def evaluate(state: State) -> State:
     # messages的最后一条
     last = state["messages"][-1]
     # 获取最后一条信息的content属性并解析出数字
-    guess = parse_digit(getattr(last, "content", "") )
+    # 用 structured_output 解析模型回复为数字
+    result = llm.structured_output(
+        schema={"guess": int},
+        messages=[last]
+    )
+    guess = result.get("guess")
     # 如果guess等于state类中的secret，返回state类中的done为True
     if guess == state["secret"]:
         return {"done": True}
@@ -103,8 +110,7 @@ graph_builder.add_node("guess", guess)
 graph_builder.add_node("evaluate", evaluate)
 
 #添加边
-graph_builder.add_edge(START, "init")
-graph_builder.add_edge("init", "guess")
+graph_builder.add_edge(START, "guess")
 graph_builder.add_edge("guess", "evaluate")
 graph_builder.add_conditional_edges("evaluate", should_continue, {"continue": "guess", "end": END})
 
